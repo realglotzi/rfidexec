@@ -50,10 +50,19 @@
 #include "hashmap.h"
 #include "mapping.h"
 
+static const int REPEAT_DELAY = 1000; 
 static int rfid_fd = -1;
 static map_t mymap;
-static char devinput[BUFSIZ] = "/dev/rfid";
+static char devinput[BUFSIZ] = "/dev/input/rfid";
 static char last_event[KEY_MAX_LENGTH] = "";
+static long long last_timestamp = 0;
+
+static long long current_timestamp() {
+    struct timeval te; 
+    gettimeofday(&te, NULL);
+    long long milliseconds = te.tv_sec * 1000LL + te.tv_usec / 1000;
+    return milliseconds;
+}
 
 static size_t read_rfid(char *const buffer, const size_t length) {
     size_t len = 0;
@@ -130,11 +139,13 @@ static void main_loop() {
 
 	char eventbuf[BUFSIZ] = "";
 	int bufSize = 0;
+	long long now = 0;
 	
 	do {
 		if ((bufSize = read_rfid(eventbuf, BUFSIZ)) > 0) {
-
-			if (strncmp(eventbuf, last_event, KEY_MAX_LENGTH) != 0) {
+			now = current_timestamp();
+			DBG("timestamp %lld - %lld = %lld\n", now, last_timestamp, now - last_timestamp);
+			if (strncmp(eventbuf, last_event, KEY_MAX_LENGTH) != 0 && (now - last_timestamp > REPEAT_DELAY)) {
 				strncpy(last_event, eventbuf, KEY_MAX_LENGTH);
 				map_entry_t *map_entry;
 				if (hashmap_get(mymap, eventbuf, (void**)(&map_entry)) == MAP_OK) {
@@ -148,6 +159,11 @@ static void main_loop() {
 				}
 			} else {
 				DBG ("Duplicate event - ignored %s\n", eventbuf);
+			}
+
+			if (now - last_timestamp > REPEAT_DELAY) {
+				strncpy(last_event, "", KEY_MAX_LENGTH);
+				last_timestamp = now;
 			}
 		}
 	} while (true);
