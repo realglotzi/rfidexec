@@ -1,0 +1,5 @@
+[Service]
+ExecStart=/usr/bin/rfidexec -f -t /etc/rfidexec.map -d /dev/input/rfid
+
+[Install]
+WantedBy=multi-user.target
